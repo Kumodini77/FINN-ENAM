@@ -37,3 +37,4 @@ Thumbs.db
 # --- Editor ------------------------------------------------------------------
 .vscode/
 .idea/
+scripts/spikes/fundamentals_access_spike/extracted/
