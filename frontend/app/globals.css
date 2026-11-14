@@ -1,0 +1,79 @@
+@import "tailwindcss";
+
+:root {
+  --color-canvas: #f6f5f2;
+  --color-surface: #ffffff;
+  --color-surface-raised: #ffffff;
+  --color-border: #e4e1da;
+  --color-border-strong: #d2cdc2;
+  --color-ink: #16181c;
+  --color-ink-muted: #5b6066;
+  --color-ink-faint: #8d9298;
+  --color-accent: #15493f;
+  --color-accent-soft: #e4ede9;
+  --color-positive: #1c7d4d;
+  --color-negative: #b4432f;
+  --color-focus: #15493f;
+}
+
+:root[data-theme="dark"] {
+  --color-canvas: #0d0f11;
+  --color-surface: #15181b;
+  --color-surface-raised: #1b1f23;
+  --color-border: #272b2f;
+  --color-border-strong: #343a3f;
+  --color-ink: #edeeee;
+  --color-ink-muted: #a4aaae;
+  --color-ink-faint: #70767a;
+  --color-accent: #4fae8e;
+  --color-accent-soft: #15241f;
+  --color-positive: #43b57a;
+  --color-negative: #e07058;
+  --color-focus: #4fae8e;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-canvas: #0d0f11;
+    --color-surface: #15181b;
+    --color-surface-raised: #1b1f23;
+    --color-border: #272b2f;
+    --color-border-strong: #343a3f;
+    --color-ink: #edeeee;
+    --color-ink-muted: #a4aaae;
+    --color-ink-faint: #70767a;
+    --color-accent: #4fae8e;
+    --color-accent-soft: #15241f;
+    --color-positive: #43b57a;
+    --color-negative: #e07058;
+    --color-focus: #4fae8e;
+  }
+}
+
+@theme inline {
+  --color-canvas: var(--color-canvas);
+  --color-surface: var(--color-surface);
+  --color-surface-raised: var(--color-surface-raised);
+  --color-border: var(--color-border);
+  --color-border-strong: var(--color-border-strong);
+  --color-ink: var(--color-ink);
+  --color-ink-muted: var(--color-ink-muted);
+  --color-ink-faint: var(--color-ink-faint);
+  --color-accent: var(--color-accent);
+  --color-accent-soft: var(--color-accent-soft);
+  --color-positive: var(--color-positive);
+  --color-negative: var(--color-negative);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}

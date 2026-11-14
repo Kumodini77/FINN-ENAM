@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+yfinance
+pandas
+python-dotenv
+supabase
+httpx
+sentence-transformers
+pdfplumber==0.11.10
+pytest
+pytest-asyncio

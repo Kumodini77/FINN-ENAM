@@ -1,0 +1,39 @@
+# --- Secrets / environment ---------------------------------------------------
+.env
+.env.*
+!.env.example
+!.env.*.example
+!**/.env.local.example
+
+# --- Python (backend) -----------------------------------------------------
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+*.egg-info/
+.mypy_cache/
+.ruff_cache/
+
+# --- Node / Next.js (frontend) ----------------------------------------------
+node_modules/
+.next/
+next-env.d.ts
+npm-debug.log*
+
+# --- Local JSON-fallback data store, embedding cache, ingestion scratch ------
+backend/data/
+*.embedding_cache*.json
+
+# --- Build output / logs ----------------------------------------------------
+dist/
+build/
+*.log
+
+# --- OS-generated ------------------------------------------------------------
+.DS_Store
+Thumbs.db
+
+# --- Editor ------------------------------------------------------------------
+.vscode/
+.idea/

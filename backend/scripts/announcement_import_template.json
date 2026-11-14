@@ -1,0 +1,15 @@
+[
+  {
+    "_comment": "TEMPLATE ONLY — replace every value below with a real filing you have verified yourself against the actual NSE/BSE/company source. Delete this _comment key and any item you don't use. See backend/scripts/import_announcements.py for how to run this file.",
+    "ticker": "RELIANCE",
+    "title": "Exact filing title, copied from the exchange/screener listing",
+    "filed_at": "2026-01-15T16:30:00+05:30",
+    "original_source_url": "https://www.bseindia.com/... (the page where you found this filing)",
+    "document_url": "https://www.bseindia.com/....pdf (optional — direct PDF link, if you have one)",
+    "extracted_text": "Optional short excerpt copied verbatim from the filing, used to improve classification. Leave null if you don't have one.",
+    "category": null,
+    "source": "manual_seed",
+    "verification_status": "unverified",
+    "seeded_by": "your name or identifier, for traceability"
+  }
+]

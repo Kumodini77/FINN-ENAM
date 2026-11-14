@@ -1,0 +1,43 @@
+-- PROPOSED ONLY — NOT NUMBERED INTO THE APPROVED SEQUENCE, NOT APPLIED, NOT YET
+-- REQUESTED. Do not execute. This file exists purely so the gap it closes is
+-- concrete and reviewable; it deliberately is NOT folded into 007 or 008.
+--
+-- THE GAP: app.repositories.documents.DocumentRepository.mark_failed() does two
+-- separate HTTP calls over supabase-py's REST interface: delete the document's
+-- chunks, then update its ingestion_status to 'failed'. These are NOT one atomic
+-- Postgres transaction - a process crash between the two calls could leave a
+-- document marked 'failed' with its chunk-delete still pending (not "stale data",
+-- just an extra no-op on the next cleanup attempt, since delete-by-document_id is
+-- itself idempotent). This is a real, documented limitation, not a silent one.
+--
+-- WHY NOT JUST FIX IT IN 007/008: 007 is a pure schema addition and 008 is a
+-- narrowly-scoped retrieval-behavior change; bundling a new RPC used only by the
+-- ingestion pipeline's failure path into either would mix unrelated concerns into
+-- a migration that's already been reviewed and approved for a specific, narrower
+-- purpose. This is offered as a candidate THIRD migration, to be reviewed and
+-- numbered on its own if/when atomicity here is judged worth the added complexity
+-- - the current two-call approach is an accepted, documented tradeoff for now
+-- (CLAUDE.md: "don't over-engineer the data plumbing").
+--
+-- Sketch only (not reviewed for the same level of rigor as 007/008 - would need its
+-- own full audit before being proposed for real use):
+--
+-- create or replace function public.mark_document_ingestion_failed(
+--     target_document_id uuid,
+--     error_message text
+-- )
+-- returns void
+-- language plpgsql
+-- security invoker
+-- set search_path = ''
+-- as $$
+-- begin
+--     delete from public.document_chunks where document_id = target_document_id;
+--     update public.documents
+--         set ingestion_status = 'failed', ingestion_error = error_message
+--         where id = target_document_id;
+-- end;
+-- $$;
+--
+-- Both statements inside one function body run in the single implicit transaction
+-- of that function call, giving the atomicity the two-call REST approach lacks.
