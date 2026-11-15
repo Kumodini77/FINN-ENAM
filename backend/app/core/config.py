@@ -1,5 +1,9 @@
+import json
 from functools import lru_cache
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from typing import Annotated
+
+from pydantic import field_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -15,10 +19,28 @@ class Settings(BaseSettings):
     environment: str = "development"
     api_prefix: str = "/api"
 
-    cors_allow_origins: list[str] = [
+    cors_allow_origins: Annotated[list[str], NoDecode] = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
     ]
+    """Production override: CORS_ALLOW_ORIGINS as a JSON array, e.g.
+    '["https://finn-enam-rho.vercel.app","http://localhost:3000"]' — a real
+    deployed frontend origin must be added here or the browser will block it.
+    `NoDecode` is required here: pydantic-settings otherwise JSON-decodes any
+    env var for a list field itself, BEFORE any field_validator runs — found
+    live, an empty-string env var (a real, easy platform-config mistake) would
+    raise a SettingsError and crash the whole app at startup. With NoDecode,
+    the validator below gets the raw string and can treat blank as "use the
+    default" instead of a fatal parse error."""
+
+    @field_validator("cors_allow_origins", mode="before")
+    @classmethod
+    def _parse_cors_origins(cls, value):
+        if isinstance(value, str):
+            if not value.strip():
+                return ["http://localhost:3000", "http://127.0.0.1:3000"]
+            return json.loads(value)
+        return value
 
     supabase_url: str | None = None
     supabase_key: str | None = None

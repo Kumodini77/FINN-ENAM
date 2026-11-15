@@ -59,6 +59,14 @@ class ResearchAskResponse(BaseModel):
     numeric_answer: NumericAnswerOut | None = None
     evidence: list[HybridEvidenceChunk]
     insufficient_evidence_reason: str | None = None
+    sources_checked: list[str] | None = None
+    """Populated only when answer_type is "insufficient_evidence": which sources
+    were actually looked at before concluding there was nothing usable, so the
+    caller never has to guess whether FINN tried."""
+    suggested_alternative: str | None = None
+    """Populated only when answer_type is "insufficient_evidence" and a company
+    has no ingested documents but real market data exists for it - a concrete
+    question Pull CAN answer right now, instead of a dead end."""
     metric_alternatives: list[str] | None = None
     """Populated only when answer_type is "ambiguous_metric": the row labels the
     question's wording matched without being able to tell which one was meant (e.g.

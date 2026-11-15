@@ -9,7 +9,7 @@ import type { DailyBar } from "@/types/api";
 // instruction: never color a multi-week chart off a single day's move, and
 // never render a line when there's insufficient real history).
 const MIN_BARS = 5;
-const ANIMATION_MS = 900;
+const ANIMATION_MS = 1400;
 
 function usePrefersReducedMotion(): boolean {
   const [reduced, setReduced] = useState(false);

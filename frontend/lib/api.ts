@@ -43,28 +43,66 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+// In-memory, per-browser-tab response cache with a short, explicit TTL per
+// endpoint — NOT a general cache for every GET. Only applied to data that is
+// genuinely safe to reuse for a few seconds (company metadata, EOD price
+// history, EOD quotes): nothing time-sensitive like alerts, events, digest
+// or research answers goes through this, so "cached" data is never silently
+// shown where freshness actually matters. Concurrent callers for the same
+// key share one in-flight request instead of firing duplicates (the N+1
+// per-company history fetch on the portfolio page is the case this exists
+// for).
+const _cache = new Map<string, { expiresAt: number; value: unknown }>();
+const _inFlight = new Map<string, Promise<unknown>>();
+
+async function cachedRequest<T>(path: string, ttlMs: number): Promise<T> {
+  const cached = _cache.get(path);
+  if (cached && cached.expiresAt > Date.now()) return cached.value as T;
+
+  const pending = _inFlight.get(path);
+  if (pending) return pending as Promise<T>;
+
+  const promise = request<T>(path)
+    .then((value) => {
+      _cache.set(path, { expiresAt: Date.now() + ttlMs, value });
+      return value;
+    })
+    .finally(() => _inFlight.delete(path));
+  _inFlight.set(path, promise);
+  return promise as Promise<T>;
+}
+
 function jsonInit(method: string, body: unknown): RequestInit {
   return { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
 }
 
+// TTLs: company metadata rarely changes within a session; EOD price/quote
+// data is finalized once per trading day, so a short cache never shows data
+// older than what the backend itself would return anyway — it just avoids
+// re-fetching it on every page visit within that window.
+const COMPANY_LIST_TTL_MS = 5 * 60_000;
+const QUOTES_TTL_MS = 45_000;
+const HISTORY_TTL_MS = 5 * 60_000;
+const PULSE_TTL_MS = 45_000;
+
 export async function fetchCompanies(portfolioOnly = false): Promise<CompanyListResponse> {
-  return request<CompanyListResponse>(`/companies${portfolioOnly ? "?portfolio_only=true" : ""}`);
+  return cachedRequest<CompanyListResponse>(`/companies${portfolioOnly ? "?portfolio_only=true" : ""}`, COMPANY_LIST_TTL_MS);
 }
 
 export async function fetchPortfolioQuotes(): Promise<PortfolioQuotesResponse> {
-  return request<PortfolioQuotesResponse>("/market-data/portfolio");
+  return cachedRequest<PortfolioQuotesResponse>("/market-data/portfolio", QUOTES_TTL_MS);
 }
 
 export async function fetchQuote(ticker: string): Promise<PriceQuote> {
-  return request<PriceQuote>(`/market-data/${ticker}`);
+  return cachedRequest<PriceQuote>(`/market-data/${ticker}`, QUOTES_TTL_MS);
 }
 
 export async function fetchPriceHistory(ticker: string, days = 30): Promise<PriceHistoryResponse> {
-  return request<PriceHistoryResponse>(`/market-data/${ticker}/history?days=${days}`);
+  return cachedRequest<PriceHistoryResponse>(`/market-data/${ticker}/history?days=${days}`, HISTORY_TTL_MS);
 }
 
 export async function fetchMarketPulse(): Promise<MarketPulseResponse> {
-  return request<MarketPulseResponse>("/market-data/portfolio/pulse");
+  return cachedRequest<MarketPulseResponse>("/market-data/portfolio/pulse", PULSE_TTL_MS);
 }
 
 export async function fetchDigest(params: {

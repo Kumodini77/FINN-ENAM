@@ -12,6 +12,11 @@ from app.core.exceptions import CompanyNotFoundError
 from app.main import app
 from app.models.document import ChunkType
 from app.schemas.research import HybridEvidenceChunk
+from app.services.research_readiness import (
+    STATUS_KNOWN_NO_DOCUMENTS,
+    STATUS_READY,
+    ResearchReadiness,
+)
 
 client = TestClient(app)
 
@@ -51,11 +56,46 @@ def test_numerical_question_with_only_unreliable_evidence_returns_insufficient_e
 
 
 def test_no_evidence_at_all_returns_insufficient_evidence():
-    with patch("app.api.research.retrieve_hybrid_evidence", return_value=[]):
+    # check_research_readiness is mocked here too: it hits PortfolioRepository/
+    # DocumentRepository, and an unmocked real call pollutes the module-level
+    # company_lookup cache for later tests in the same pytest process (the
+    # exact cross-test contamination bug documented in
+    # tests/test_multi_company_isolation.py).
+    ready = ResearchReadiness(
+        ticker="HDFCBANK", company_name="HDFC Bank", is_known_company=True,
+        is_portfolio_member=True, has_retrievable_documents=False, status=STATUS_READY, message="",
+    )
+    with (
+        patch("app.api.research.retrieve_hybrid_evidence", return_value=[]),
+        patch("app.api.research.check_research_readiness", return_value=ready),
+    ):
         resp = client.get("/api/research/ask", params={"ticker": "HDFCBANK", "question": "What happened to margins?"})
     body = resp.json()
     assert body["answer_type"] == "insufficient_evidence"
     assert body["evidence"] == []
+
+
+def test_insufficient_evidence_for_company_with_no_documents_suggests_portfolio_data():
+    """Real UX problem this closes: a company with real market data but zero
+    ingested documents used to get a bare "insufficient evidence" with no
+    explanation. Now it names what was checked and points at a question FINN
+    can actually answer (per the agreed scope: Pull itself still never uses
+    market data as evidence directly)."""
+    no_docs = ResearchReadiness(
+        ticker="DIXON", company_name="Dixon Technologies", is_known_company=True,
+        is_portfolio_member=True, has_retrievable_documents=False, status=STATUS_KNOWN_NO_DOCUMENTS, message="",
+    )
+    with (
+        patch("app.api.research.retrieve_hybrid_evidence", return_value=[]),
+        patch("app.api.research.check_research_readiness", return_value=no_docs),
+    ):
+        resp = client.get("/api/research/ask", params={"ticker": "DIXON", "question": "What was revenue last quarter?"})
+    body = resp.json()
+    assert body["answer_type"] == "insufficient_evidence"
+    assert "no documents" in body["insufficient_evidence_reason"].lower() or "no primary-source" in body["insufficient_evidence_reason"].lower()
+    assert body["sources_checked"]
+    assert body["suggested_alternative"] is not None
+    assert "Portfolio" in body["suggested_alternative"]
 
 
 def test_numerical_question_with_no_structured_fact_but_reliable_prose_falls_back_to_evidence_digest():

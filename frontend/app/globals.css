@@ -1,70 +1,76 @@
 @import "tailwindcss";
 
+/* Brand palette: Warm Sand #DFBE8B, Muted Rose #8F5C64, Deep Burgundy #33091B,
+   Deep Teal #072D33, Sage Green #3A7564, Soft Sage #9ABCAB. Deep Teal is the
+   primary anchor; sand/sage are complementary accents; burgundy is reserved
+   for caution/contrast. Financial movement colours (positive/negative) are
+   kept as unambiguous green/red regardless of theme — accuracy beats palette
+   purity there, per explicit instruction. */
 :root {
-  --color-canvas: #f7f5f0;
-  --color-surface: #ffffff;
+  --color-canvas: #f5ead2;
+  --color-surface: #fffaf0;
   --color-surface-raised: #ffffff;
-  --color-border: #e4e1da;
-  --color-border-strong: #d2cdc2;
-  --color-ink: #16181c;
-  --color-ink-muted: #5b6066;
-  --color-ink-faint: #8d9298;
-  --color-accent: #0f3d33;
-  --color-accent-soft: #e4ede9;
-  --color-teal: #2a7d77;
-  --color-teal-soft: #e2f0ee;
+  --color-border: #e0c89a;
+  --color-border-strong: #c9a873;
+  --color-ink: #09262b;
+  --color-ink-muted: #3c6b63;
+  --color-ink-faint: #7fa296;
+  --color-accent: #0b4a53;
+  --color-accent-soft: #d7ebe3;
+  --color-teal: #2f8a6e;
+  --color-teal-soft: #d2ecdf;
   --color-positive: #1c7d4d;
   --color-positive-soft: #e4f2e9;
-  --color-negative: #ab3f2c;
-  --color-negative-soft: #f7e9e5;
-  --color-warning: #a6710a;
-  --color-warning-soft: #f7edd9;
-  --color-focus: #0f3d33;
+  --color-negative: #b23350;
+  --color-negative-soft: #f7e1e6;
+  --color-warning: #a8616d;
+  --color-warning-soft: #f3e2e5;
+  --color-focus: #0b4a53;
 }
 
 :root[data-theme="dark"] {
-  --color-canvas: #0b1210;
-  --color-surface: #121a17;
-  --color-surface-raised: #17201c;
-  --color-border: #263230;
-  --color-border-strong: #344139;
-  --color-ink: #edeeee;
-  --color-ink-muted: #a4aaae;
-  --color-ink-faint: #70767a;
-  --color-accent: #4fae8e;
-  --color-accent-soft: #15251f;
-  --color-teal: #5fc1b8;
-  --color-teal-soft: #0f2524;
+  --color-canvas: #061a1e;
+  --color-surface: #0d2f35;
+  --color-surface-raised: #123840;
+  --color-border: #1f4850;
+  --color-border-strong: #2f5e66;
+  --color-ink: #d8ecd0;
+  --color-ink-muted: #9fc3ae;
+  --color-ink-faint: #6b9483;
+  --color-accent: #e8c88f;
+  --color-accent-soft: #23423a;
+  --color-teal: #4fae8a;
+  --color-teal-soft: #163d34;
   --color-positive: #4cc188;
   --color-positive-soft: #122a1e;
-  --color-negative: #e8846c;
-  --color-negative-soft: #2a1714;
-  --color-warning: #e0b84b;
-  --color-warning-soft: #2b2311;
-  --color-focus: #4fae8e;
+  --color-negative: #e8899a;
+  --color-negative-soft: #341b22;
+  --color-warning: #d49aa0;
+  --color-warning-soft: #341e22;
+  --color-focus: #e8c88f;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --color-canvas: #0b1210;
-    --color-surface: #121a17;
-    --color-surface-raised: #17201c;
-    --color-border: #263230;
-    --color-border-strong: #344139;
-    --color-ink: #edeeee;
-    --color-ink-muted: #a4aaae;
-    --color-ink-faint: #70767a;
-    --color-accent: #4fae8e;
-    --color-accent-soft: #15251f;
-    --color-teal: #5fc1b8;
-    --color-teal-soft: #0f2524;
+    --color-canvas: #061a1e;
+    --color-surface: #0d2f35;
+    --color-surface-raised: #123840;
+    --color-border: #1f4850;
+    --color-border-strong: #2f5e66;
+    --color-ink: #d8ecd0;
+    --color-ink-muted: #9fc3ae;
+    --color-ink-faint: #6b9483;
+    --color-accent: #e8c88f;
+    --color-accent-soft: #23423a;
+    --color-teal: #4fae8a;
+    --color-teal-soft: #163d34;
     --color-positive: #4cc188;
     --color-positive-soft: #122a1e;
-    --color-negative: #e8846c;
-    --color-negative-soft: #2a1714;
-    --color-warning: #e0b84b;
-    --color-warning-soft: #2b2311;
-    --color-focus: #4fae8e;
+    --color-negative: #e8899a;
+    --color-negative-soft: #341b22;
+    --color-warning: #d49aa0;
+    --color-warning-soft: #341e22;
+    --color-focus: #e8c88f;
   }
 }
 

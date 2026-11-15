@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { fetchCompanies, fetchEvents, fetchPortfolioQuotes, fetchPriceHistory } from "@/lib/api";
 import { formatPct, formatPrice, formatTime, formatVolume } from "@/lib/format";
 import { computeStatus, STATUS_LABEL, STATUS_ORDER, type PortfolioStatus } from "@/lib/portfolioStatus";
+import { movementTone, MOVEMENT_TEXT_CLASS, MOVEMENT_DOT_CLASS, type MovementTone } from "@/lib/movement";
 import { Sparkline } from "./Sparkline";
 import type { Company, DailyBar, EventItem, PriceQuote } from "@/types/api";
 
@@ -14,9 +15,13 @@ type Row = {
   latestEvent: EventItem | undefined;
   status: PortfolioStatus;
   statusReason: string;
+  momentum: MovementTone | "limited_data";
 };
 
-type Filter = "all" | "sector" | "positive" | "needs_attention" | "limited_data";
+// Momentum reflects the ACTUAL signed daily percentage change — a separate
+// axis from `status` (business-event severity). "limited_data" means no
+// usable quote at all, distinct from a real 0.00% ("stable").
+type MomentumFilter = "all" | "positive" | "negative" | "stable" | "limited_data";
 
 const STATUS_DOT: Record<PortfolioStatus, string> = {
   needs_attention: "bg-[var(--color-negative)]",
@@ -42,7 +47,7 @@ export function PortfolioTable() {
   const [notes, setNotes] = useState<string>("");
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<Filter>("all");
+  const [momentumFilter, setMomentumFilter] = useState<MomentumFilter>("all");
   const [sectorFilter, setSectorFilter] = useState<string | null>(null);
 
   useEffect(() => {
@@ -77,7 +82,11 @@ export function PortfolioTable() {
           const quote = quoteByTicker.get(company.ticker);
           const latestEvent = latestEventByTicker.get(company.ticker);
           const { status, reason } = computeStatus(quote, latestEvent);
-          return { company, quote, history: histories[i], latestEvent, status, statusReason: reason };
+          const momentum: Row["momentum"] =
+            !quote || !quote.data_available || quote.daily_change_pct === null
+              ? "limited_data"
+              : movementTone(quote.daily_change_pct);
+          return { company, quote, history: histories[i], latestEvent, status, statusReason: reason, momentum };
         });
 
         if (cancelled) return;
@@ -105,25 +114,30 @@ export function PortfolioTable() {
     if (!rows) return null;
     return {
       total: rows.length,
-      positive: rows.filter((r) => r.status === "positive").length,
+      positive: rows.filter((r) => r.momentum === "positive").length,
+      negative: rows.filter((r) => r.momentum === "negative").length,
+      limitedData: rows.filter((r) => r.momentum === "limited_data").length,
       needsAttention: rows.filter((r) => r.status === "needs_attention").length,
-      limitedData: rows.filter((r) => r.status === "limited_data").length,
       importantDevelopments: rows.filter((r) => r.latestEvent).length,
     };
   }, [rows]);
 
+  // Search, sector and momentum filters all apply together (AND), not as
+  // mutually-exclusive modes — a sector choice must not reset the momentum
+  // filter and vice versa.
   const filteredRows = useMemo(() => {
     if (!rows) return [];
     const q = search.trim().toLowerCase();
     return rows.filter((r) => {
       if (q && !r.company.name.toLowerCase().includes(q) && !r.company.ticker.toLowerCase().includes(q)) return false;
-      if (filter === "positive" && r.status !== "positive") return false;
-      if (filter === "needs_attention" && r.status !== "needs_attention") return false;
-      if (filter === "limited_data" && r.status !== "limited_data") return false;
-      if (filter === "sector" && sectorFilter && r.company.sector !== sectorFilter) return false;
+      if (sectorFilter && r.company.sector !== sectorFilter) return false;
+      if (momentumFilter === "positive" && r.momentum !== "positive") return false;
+      if (momentumFilter === "negative" && r.momentum !== "negative") return false;
+      if (momentumFilter === "stable" && r.momentum !== "neutral") return false;
+      if (momentumFilter === "limited_data" && r.momentum !== "limited_data") return false;
       return true;
     });
-  }, [rows, search, filter, sectorFilter]);
+  }, [rows, search, momentumFilter, sectorFilter]);
 
   const grouped = useMemo(() => {
     const bySector = new Map<string, Row[]>();
@@ -182,17 +196,18 @@ export function PortfolioTable() {
 
         <div className="flex flex-wrap gap-1.5">
           {([
-            ["all", "All companies"],
+            ["all", "All"],
             ["positive", "Positive momentum"],
-            ["needs_attention", "Needs attention"],
+            ["negative", "Negative momentum"],
+            ["stable", "Stable"],
             ["limited_data", "Limited data"],
-          ] as [Filter, string][]).map(([key, label]) => (
+          ] as [MomentumFilter, string][]).map(([key, label]) => (
             <button
               key={key}
               type="button"
-              onClick={() => setFilter(key)}
+              onClick={() => setMomentumFilter(key)}
               className={`rounded-full border px-3 py-1.5 text-[12px] font-medium transition-colors ${
-                filter === key
+                momentumFilter === key
                   ? "border-[var(--color-accent)] bg-[var(--color-accent-soft)] text-[var(--color-accent)]"
                   : "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-ink-muted)] hover:border-[var(--color-border-strong)]"
               }`}
@@ -201,11 +216,8 @@ export function PortfolioTable() {
             </button>
           ))}
           <select
-            value={filter === "sector" ? sectorFilter ?? "" : ""}
-            onChange={(e) => {
-              setSectorFilter(e.target.value || null);
-              setFilter(e.target.value ? "sector" : "all");
-            }}
+            value={sectorFilter ?? ""}
+            onChange={(e) => setSectorFilter(e.target.value || null)}
             className="rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-[12px] font-medium text-[var(--color-ink-muted)]"
           >
             <option value="">By sector…</option>
@@ -222,15 +234,15 @@ export function PortfolioTable() {
       {summary && (
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           <SummaryTile label="Positive momentum" value={summary.positive} tone="positive" />
-          <SummaryTile label="Needs attention" value={summary.needsAttention} tone="negative" />
-          <SummaryTile label="Important updates" value={summary.importantDevelopments} tone="teal" />
+          <SummaryTile label="Negative momentum" value={summary.negative} tone="negative" />
+          <SummaryTile label="Needs attention" value={summary.needsAttention} tone="teal" />
           <SummaryTile label="Limited data" value={summary.limitedData} tone="muted" />
         </div>
       )}
 
       {filteredRows.length === 0 && (
         <div className="rounded-xl border border-dashed border-[var(--color-border-strong)] bg-[var(--color-surface)] p-6 text-center text-sm text-[var(--color-ink-muted)]">
-          No companies match “{search}”{filter !== "all" ? " with the selected filter" : ""}.
+          No companies match “{search}”{momentumFilter !== "all" || sectorFilter ? " with the selected filter" : ""}.
         </div>
       )}
 
@@ -319,7 +331,7 @@ function DesktopRow({ row }: { row: Row }) {
     );
   }
 
-  const isUp = (quote.daily_change_pct ?? 0) >= 0;
+  const tone = movementTone(quote.daily_change_pct);
 
   return (
     <tr className="border-b border-[var(--color-border)] last:border-0 hover:bg-[var(--color-canvas)]/50 align-middle" title={statusReason}>
@@ -328,7 +340,7 @@ function DesktopRow({ row }: { row: Row }) {
         <div className="text-[12px] text-[var(--color-ink-faint)]">{company.ticker}</div>
       </td>
       <td className="tabular px-4 py-3 text-right font-medium text-[var(--color-ink)]">{formatPrice(quote.latest_close)}</td>
-      <td className={`tabular px-4 py-3 text-right font-medium ${isUp ? "text-[var(--color-positive)]" : "text-[var(--color-negative)]"}`}>
+      <td className={`tabular px-4 py-3 text-right font-medium ${MOVEMENT_TEXT_CLASS[tone]}`}>
         {formatPct(quote.daily_change_pct)}
       </td>
       <td className="tabular px-4 py-3 text-right text-[var(--color-ink-muted)]">{formatVolume(quote.latest_volume)}</td>
@@ -359,7 +371,7 @@ function MobileCard({ row }: { row: Row }) {
     );
   }
 
-  const isUp = (quote.daily_change_pct ?? 0) >= 0;
+  const tone = movementTone(quote.daily_change_pct);
 
   return (
     <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-canvas)] p-3">
@@ -376,7 +388,7 @@ function MobileCard({ row }: { row: Row }) {
 
       {/* Middle row */}
       <div className="mt-2 flex items-center justify-between gap-2 text-[13px]">
-        <span className={`tabular font-semibold ${isUp ? "text-[var(--color-positive)]" : "text-[var(--color-negative)]"}`}>
+        <span className={`tabular font-semibold ${MOVEMENT_TEXT_CLASS[tone]}`}>
           {formatPct(quote.daily_change_pct)}
         </span>
         <span className="text-[12px] text-[var(--color-ink-muted)]">Vol {formatVolume(quote.latest_volume)}</span>

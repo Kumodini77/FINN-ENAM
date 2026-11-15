@@ -130,7 +130,21 @@ function FinnsView({ result, onAsk }: { result: ResearchAskResponse; onAsk: (q: 
       </>
     );
   } else {
-    body = <p className="text-[13px] leading-relaxed text-[var(--color-ink-muted)]">{result.insufficient_evidence_reason}</p>;
+    body = (
+      <>
+        <p className="text-[13px] leading-relaxed text-[var(--color-ink-muted)]">{result.insufficient_evidence_reason}</p>
+        {result.sources_checked && result.sources_checked.length > 0 && (
+          <p className="mt-2 text-[12px] leading-relaxed text-[var(--color-ink-faint)]">
+            Checked: {result.sources_checked.join("; ")}.
+          </p>
+        )}
+        {result.suggested_alternative && (
+          <p className="mt-2 rounded-lg bg-[var(--color-accent-soft)] p-2.5 text-[13px] leading-relaxed text-[var(--color-accent)]">
+            {result.suggested_alternative}
+          </p>
+        )}
+      </>
+    );
   }
 
   const followUps = result.answer_type === "insufficient_evidence" ? [] : followUpsFor(result.question);

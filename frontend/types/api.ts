@@ -291,6 +291,8 @@ export interface ResearchAskResponse {
   numeric_answer: NumericAnswer | null;
   evidence: HybridEvidenceChunk[];
   insufficient_evidence_reason: string | null;
+  sources_checked: string[] | null;
+  suggested_alternative: string | null;
   metric_alternatives: string[] | null;
   generation_note: string;
 }

@@ -17,6 +17,11 @@ from app.schemas.research import HybridEvidenceChunk, NumericAnswerOut, Research
 from app.services.hybrid_retrieval import retrieve_hybrid_evidence
 from app.services.numeric_answer import extract_numeric_answer, resolve_cross_chunk_metric_ambiguity
 from app.services.query_intent import QueryIntent, classify_query_intent
+from app.services.research_readiness import (
+    STATUS_DOCUMENTS_NOT_RETRIEVABLE,
+    STATUS_KNOWN_NO_DOCUMENTS,
+    check_research_readiness,
+)
 
 router = APIRouter(prefix="/research", tags=["research"])
 
@@ -53,10 +58,41 @@ def ask(
     company_ticker = evidence_internal[0].company_ticker if evidence_internal else ticker.strip().upper()
 
     if not evidence_internal:
+        # Explain exactly what was checked and why nothing came back, rather than
+        # a bare "insufficient evidence" - most real cases are simply that no
+        # document has been ingested for this company yet, which is a very
+        # different situation from "we looked and found nothing relevant".
+        sources_checked = ["Ingested annual reports, concall transcripts and regulatory filings for this company"]
+        suggested_alternative = None
+        reason = _INSUFFICIENT_EVIDENCE_REASON_NO_CHUNKS
+        try:
+            readiness = check_research_readiness(ticker)
+        except Exception:
+            readiness = None
+        if readiness is not None:
+            if readiness.status == STATUS_KNOWN_NO_DOCUMENTS:
+                reason = (
+                    f"No primary-source documents (annual reports, concall transcripts, filings) have been "
+                    f"ingested yet for {readiness.company_name or company_ticker} - there is nothing for Pull "
+                    "to retrieve evidence from."
+                )
+                if readiness.is_portfolio_member:
+                    suggested_alternative = (
+                        f"{readiness.company_name or company_ticker}'s live price, volume and recent "
+                        "announcement activity is available on the Portfolio and Daily Intelligence pages, "
+                        "even though no documents are ingested yet for Pull research."
+                    )
+            elif readiness.status == STATUS_DOCUMENTS_NOT_RETRIEVABLE:
+                reason = (
+                    f"{len(readiness.documents)} document(s) are on record for "
+                    f"{readiness.company_name or company_ticker}, but none have finished ingestion yet, so none "
+                    "are currently retrievable as evidence."
+                )
         return ResearchAskResponse(
             company_ticker=company_ticker, company_id=company_id or "", question=question,
             intents=[i.value for i in intents], answer_type="insufficient_evidence",
-            evidence=[], insufficient_evidence_reason=_INSUFFICIENT_EVIDENCE_REASON_NO_CHUNKS,
+            evidence=[], insufficient_evidence_reason=reason,
+            sources_checked=sources_checked, suggested_alternative=suggested_alternative,
             generation_note=_GENERATION_NOTE,
         )
 
