@@ -1,31 +1,25 @@
 @import "tailwindcss";
 
-/* Brand palette: Warm Sand #DFBE8B, Muted Rose #8F5C64, Deep Burgundy #33091B,
-   Deep Teal #072D33, Sage Green #3A7564, Soft Sage #9ABCAB. Deep Teal is the
-   primary anchor; sand/sage are complementary accents; burgundy is reserved
-   for caution/contrast. Financial movement colours (positive/negative) are
-   kept as unambiguous green/red regardless of theme — accuracy beats palette
-   purity there, per explicit instruction. */
 :root {
-  --color-canvas: #f5ead2;
-  --color-surface: #fffaf0;
+  --color-canvas: #f7f5f0;
+  --color-surface: #ffffff;
   --color-surface-raised: #ffffff;
-  --color-border: #e0c89a;
-  --color-border-strong: #c9a873;
-  --color-ink: #09262b;
-  --color-ink-muted: #3c6b63;
-  --color-ink-faint: #7fa296;
-  --color-accent: #0b4a53;
-  --color-accent-soft: #d7ebe3;
-  --color-teal: #2f8a6e;
-  --color-teal-soft: #d2ecdf;
+  --color-border: #e4e1da;
+  --color-border-strong: #d2cdc2;
+  --color-ink: #16181c;
+  --color-ink-muted: #5b6066;
+  --color-ink-faint: #8d9298;
+  --color-accent: #0f3d33;
+  --color-accent-soft: #e4ede9;
+  --color-teal: #2a7d77;
+  --color-teal-soft: #e2f0ee;
   --color-positive: #1c7d4d;
   --color-positive-soft: #e4f2e9;
-  --color-negative: #b23350;
-  --color-negative-soft: #f7e1e6;
-  --color-warning: #a8616d;
-  --color-warning-soft: #f3e2e5;
-  --color-focus: #0b4a53;
+  --color-negative: #ab3f2c;
+  --color-negative-soft: #f7e9e5;
+  --color-warning: #a6710a;
+  --color-warning-soft: #f7edd9;
+  --color-focus: #0f3d33;
 }
 
 :root[data-theme="dark"] {
