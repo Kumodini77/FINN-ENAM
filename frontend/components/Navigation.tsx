@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { ThemeToggle } from "./ThemeToggle";
 import { Wordmark } from "./Wordmark";
 
 const NAV_ITEMS = [
@@ -15,8 +16,9 @@ export function DesktopSidebar() {
   const pathname = usePathname();
   return (
     <aside className="hidden md:flex md:w-60 md:flex-col md:border-r md:border-[var(--color-border)] md:bg-[var(--color-surface)] md:px-4 md:py-5">
-      <div className="px-2 pb-6">
+      <div className="flex items-center justify-between px-2 pb-6">
         <Wordmark />
+        <ThemeToggle />
       </div>
       <nav className="flex flex-1 flex-col gap-1">
         {NAV_ITEMS.map((item) => {

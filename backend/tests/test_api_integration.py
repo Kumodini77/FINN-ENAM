@@ -168,6 +168,32 @@ def test_digest_category_filter_via_api():
     assert all(item["category"] == "dividend" for item in body["items"])
 
 
+def test_digest_custom_date_range_via_api_accepts_bare_dates():
+    """A bare date string (what an HTML date input sends) must not 500 - this is
+    the real bug a naive/aware datetime comparison would otherwise hit."""
+    resp = client.get("/api/digest", params={"start": "2026-01-01", "end": "2026-01-31"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total_count"] == len(body["items"])  # internally consistent, not asserting a specific count
+
+
+def test_digest_custom_date_range_rejects_start_after_end_via_api():
+    resp = client.get("/api/digest", params={"start": "2026-02-01", "end": "2026-01-01"})
+    assert resp.status_code == 422
+    assert resp.json()["error"]["code"] == "invalid_date_range"
+
+
+def test_events_custom_date_range_via_api_accepts_bare_dates():
+    resp = client.get("/api/events", params={"start": "2026-01-01", "end": "2026-01-31"})
+    assert resp.status_code == 200
+
+
+def test_events_custom_date_range_rejects_start_after_end_via_api():
+    resp = client.get("/api/events", params={"start": "2026-02-01", "end": "2026-01-01"})
+    assert resp.status_code == 422
+    assert resp.json()["error"]["code"] == "invalid_date_range"
+
+
 def test_financials_results_comparison_empty_for_unimported_ticker():
     resp = client.get("/api/financials/WIPRO/results-comparison")
     assert resp.status_code == 200

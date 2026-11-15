@@ -106,9 +106,29 @@ def _split_words_to_fit(text: str, provider: EmbeddingProvider) -> list[str]:
     return pieces
 
 
+# " | " (not ",") separates values: Indian-format numbers routinely embed
+# commas of their own (lakh/crore grouping, e.g. "1,61,000"), so a comma
+# separator would be ambiguous between "end of this value" and "thousands
+# grouping within this value". " | " never appears inside a numeric token.
+_VALUE_SEP = " | "
+
+
+def _format_row(row) -> str:
+    # column_labels is only set when the table's header had optional/sparse
+    # columns (see app.services.pdf_extraction._reconcile_sparse_columns) - in
+    # that case this specific row may have fewer values than the full header,
+    # so each value is rendered against its OWN column's label rather than
+    # relying on positional order against the full header line, which would be
+    # ambiguous (or wrong) for a shortened row.
+    if row.column_labels is not None:
+        pairs = _VALUE_SEP.join(f"{label}={value}" for label, value in zip(row.column_labels, row.values))
+        return f"{row.label}: {pairs}"
+    return f"{row.label}: {_VALUE_SEP.join(row.values)}"
+
+
 def _format_table_row_group(header_line: str, title: str | None, rows_subset, start: int, end: int, total: int) -> str:
     prefix = f"{title}\n" if title else ""
-    body = "\n".join(f"{r.label}: {', '.join(r.values)}" for r in rows_subset)
+    body = "\n".join(_format_row(r) for r in rows_subset)
     if start == 0 and end == total:
         return f"{prefix}{header_line}\n{body}"
     return f"{prefix}{header_line}\n[rows {start + 1}-{end} of {total}]\n{body}"
@@ -164,9 +184,14 @@ def _chunk_oversized_row(block: TableBlock, row, row_index: int, provider: Embed
     for start, end in sub_ranges:
         subset_values = values[start:end]
         prefix = f"{block.title}\n" if block.title else ""
+        if row.column_labels is not None:
+            subset_labels = row.column_labels[start:end]
+            rendered = _VALUE_SEP.join(f"{label}={value}" for label, value in zip(subset_labels, subset_values))
+        else:
+            rendered = _VALUE_SEP.join(subset_values)
         text = (
             f"{prefix}{block.header_line}\n[row {row_index + 1}, columns {start + 1}-{end} of {len(values)}]\n"
-            f"{row.label}: {', '.join(subset_values)}"
+            f"{row.label}: {rendered}"
         )
         if provider.count_tokens(text) > HARD_LIMIT_TOKENS:
             raise ChunkingError(

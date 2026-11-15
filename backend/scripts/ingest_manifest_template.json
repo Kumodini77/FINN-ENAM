@@ -1,0 +1,17 @@
+[
+  {
+    "_comment": "Copy this file, remove this comment line and the ones below, fill in real local files and real source URLs. Objects with a _comment key are skipped.",
+    "pdf": "path/to/file.pdf",
+    "ticker": "RELIANCE",
+    "doc_type": "annual_report",
+    "reporting_period": "FY2012-13",
+    "source_url": "https://example.invalid/ar.pdf"
+  },
+  {
+    "pdf": "path/to/another_file.pdf",
+    "ticker": "TCS",
+    "doc_type": "investor_presentation",
+    "reporting_period": "Q1FY27",
+    "source_url": "https://example.invalid/presentation.pdf"
+  }
+]

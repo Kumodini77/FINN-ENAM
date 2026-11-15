@@ -47,7 +47,7 @@ def retrieve_relevant_chunks(company_ticker: str, question: str, match_count: in
             "the JSON-fallback store has no equivalent."
         )
 
-    ticker = company_ticker.upper()
+    ticker = company_ticker.strip().upper()
     company_id = get_company_id(ticker)
     if company_id is None:
         raise CompanyNotFoundError(f"Unknown ticker '{ticker}' — no companies row found.")

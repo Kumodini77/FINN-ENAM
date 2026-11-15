@@ -2,7 +2,7 @@ import type { AnnouncementCategory, PriorityLevel } from "@/types/api";
 
 const PRIORITY_STYLES: Record<PriorityLevel, string> = {
   high: "bg-[var(--color-negative)]/10 text-[var(--color-negative)]",
-  medium: "bg-amber-500/10 text-amber-700",
+  medium: "bg-[var(--color-warning-soft)] text-[var(--color-warning)]",
   low: "bg-[var(--color-border)] text-[var(--color-ink-muted)]",
 };
 

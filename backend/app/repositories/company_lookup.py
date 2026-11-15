@@ -54,7 +54,7 @@ def get_company_id(ticker: str) -> str | None:
     """Cache-only lookup. Returns None if the ticker has no companies row yet —
     callers that want to auto-register an unseen ticker should use
     get_or_register_company_id() instead."""
-    ticker = ticker.upper()
+    ticker = ticker.strip().upper()
     if ticker not in _ticker_to_id:
         _load_cache()
     return _ticker_to_id.get(ticker)
@@ -114,7 +114,7 @@ def get_or_register_company_id(ticker: str) -> str:
     ticker can't be verified. Registration is atomic at the database level
     (on_conflict="ticker", ignore_duplicates=True), so two concurrent calls for the
     same brand-new ticker can't create duplicate companies rows."""
-    ticker = ticker.upper()
+    ticker = ticker.strip().upper()
     existing = get_company_id(ticker)
     if existing is not None:
         return existing

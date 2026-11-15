@@ -67,7 +67,7 @@ export function EventCard({ event }: { event: EventItem }) {
       )}
 
       {event.basis_mismatch_warnings.length > 0 && (
-        <p className="mt-2 text-[11px] text-amber-700">⚠ {event.basis_mismatch_warnings.join("; ")}</p>
+        <p className="mt-2 text-[11px] text-[var(--color-warning)]">⚠ {event.basis_mismatch_warnings.join("; ")}</p>
       )}
       {event.missing_information.length > 0 && (
         <p className="mt-2 text-[11px] text-[var(--color-ink-faint)]">{event.missing_information.join(" ")}</p>

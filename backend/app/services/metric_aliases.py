@@ -15,7 +15,7 @@ import re
 METRIC_ALIASES: dict[str, list[str]] = {
     "net interest income": ["nii", "net interest income"],
     "non-interest income": ["other income", "non interest income", "fee income"],
-    "net revenue": ["revenue", "total revenue", "total income", "net sales", "turnover", "topline", "top line"],
+    "net revenue": ["revenue", "total revenue", "total income", "net sales", "sales", "turnover", "topline", "top line"],
     "operating expenses": ["opex", "operating expenses", "operating cost"],
     "provisions": ["provisions", "provisioning", "credit cost"],
     "profit before tax": ["pbt", "profit before tax"],
@@ -29,6 +29,8 @@ METRIC_ALIASES: dict[str, list[str]] = {
     "capital expenditure": ["capex", "capital expenditure", "capital spending"],
     "deposits": ["deposits", "total deposits", "casa"],
     "net interest margin": ["nim", "net interest margin"],
+    "gross npa": ["gross npa", "gnpa", "gross non-performing assets", "gross non performing assets"],
+    "net npa": ["net npa", "nnpa", "net non-performing assets", "net non performing assets"],
     "earnings per share": ["eps", "earnings per share"],
 }
 

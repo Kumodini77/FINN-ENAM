@@ -23,3 +23,23 @@ app.add_exception_handler(FinnError, finn_error_handler)
 app.add_exception_handler(Exception, unhandled_exception_handler)
 
 app.include_router(api_router, prefix=settings.api_prefix)
+
+
+@app.on_event("startup")
+def _start_market_data_scheduler() -> None:
+    """Best-effort in-process scheduler — only started when explicitly enabled via
+    ENABLE_MARKET_DATA_SCHEDULER=true. See docs/FINN_PHASE_12A_REPORT.md: this is
+    NOT the recommended production mechanism on a web dyno that can idle or
+    restart (the scheduled job silently never fires while the process is down) —
+    scripts/run_market_data_refresh.py, triggered by an external scheduler (e.g. a
+    Render Cron Job), is. This path exists as a free, zero-extra-infrastructure
+    fallback for deployments that keep one process running continuously."""
+    if not any((settings.enable_market_data_scheduler, settings.enable_document_discovery_scheduler, settings.enable_announcement_discovery_scheduler)):
+        return
+    from app.services.scheduler import start_scheduler
+
+    start_scheduler(
+        settings.market_data_refresh_cron if settings.enable_market_data_scheduler else None,
+        settings.document_discovery_cron if settings.enable_document_discovery_scheduler else None,
+        settings.announcement_discovery_cron if settings.enable_announcement_discovery_scheduler else None,
+    )

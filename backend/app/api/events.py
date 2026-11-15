@@ -11,9 +11,9 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Query
 
-from app.core.companies import PORTFOLIO
 from app.models.announcement import AnnouncementCategory
 from app.repositories.announcements import AnnouncementRepository
+from app.repositories.portfolio import PortfolioRepository
 from app.schemas.events import EventOut, EventsResponse, FinancialChangeOut, ResearchLinkOut, SourceDocumentOut
 from app.services.digest import resolve_window
 from app.services.event_grouping import group_announcements_into_events
@@ -31,7 +31,7 @@ def get_events(
     end: datetime | None = None,
     categories: list[AnnouncementCategory] | None = Query(default=None),
 ) -> EventsResponse:
-    tickers = {c.ticker for c in PORTFOLIO}
+    tickers = PortfolioRepository().list_tickers()
     window_start, window_end = resolve_window(window_hours, start, end)
     category_set = set(categories) if categories else None
 

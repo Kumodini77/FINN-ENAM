@@ -5,16 +5,11 @@ import { ApiError, fetchDigest } from "@/lib/api";
 import { ALL_ANNOUNCEMENT_CATEGORIES, type AnnouncementCategory, type DigestResponse } from "@/types/api";
 import { AnnouncementCard } from "./AnnouncementCard";
 import { categoryLabel } from "./Badges";
+import { DateRangeFilter, type DateRangeSelection } from "./DateRangeFilter";
 import { EmptyState } from "./EmptyState";
 
-const WINDOW_OPTIONS = [
-  { label: "24h", hours: 24 },
-  { label: "7 days", hours: 24 * 7 },
-  { label: "30 days", hours: 24 * 30 },
-] as const;
-
 export function DigestFeed() {
-  const [windowHours, setWindowHours] = useState<number>(24);
+  const [range, setRange] = useState<DateRangeSelection>({ mode: "window", windowHours: 24 });
   const [selectedCategories, setSelectedCategories] = useState<Set<AnnouncementCategory>>(new Set());
   const [showRoutine, setShowRoutine] = useState(false);
   const [digest, setDigest] = useState<DigestResponse | null>(null);
@@ -26,7 +21,11 @@ export function DigestFeed() {
     // buttons below, plus the initial useState(true)), not here — setting state
     // synchronously in an effect body risks cascading renders.
     let cancelled = false;
-    fetchDigest({ windowHours, categories: Array.from(selectedCategories) })
+    const params =
+      range.mode === "window"
+        ? { windowHours: range.windowHours, categories: Array.from(selectedCategories) }
+        : { start: range.start, end: range.end, categories: Array.from(selectedCategories) };
+    fetchDigest(params)
       .then((d) => {
         if (!cancelled) {
           setDigest(d);
@@ -42,7 +41,7 @@ export function DigestFeed() {
     return () => {
       cancelled = true;
     };
-  }, [windowHours, selectedCategories]);
+  }, [range, selectedCategories]);
 
   const { visible, collapsed } = useMemo(() => {
     const items = digest?.items ?? [];
@@ -62,28 +61,14 @@ export function DigestFeed() {
     });
   }
 
-  function selectWindow(hours: number) {
+  function selectRange(selection: DateRangeSelection) {
     setLoading(true);
-    setWindowHours(hours);
+    setRange(selection);
   }
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
-        {WINDOW_OPTIONS.map((opt) => (
-          <button
-            key={opt.hours}
-            onClick={() => selectWindow(opt.hours)}
-            className={`rounded-full px-3 py-1.5 text-[13px] font-medium transition-colors ${
-              windowHours === opt.hours
-                ? "bg-[var(--color-accent)] text-white"
-                : "border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-ink-muted)] hover:bg-[var(--color-canvas)]"
-            }`}
-          >
-            {opt.label}
-          </button>
-        ))}
-      </div>
+      <DateRangeFilter value={range} onChange={selectRange} />
 
       <div className="flex flex-wrap gap-1.5">
         {ALL_ANNOUNCEMENT_CATEGORIES.map((cat) => (

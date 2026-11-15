@@ -54,3 +54,29 @@ class PortfolioQuotesResponse(BaseModel):
     calculation_notes: str = Field(
         description="Human-readable note on the windows/methodology used, per requirements to document calculations."
     )
+
+
+class PriceHistoryResponse(BaseModel):
+    ticker: str
+    data_available: bool
+    bars: list[DailyBar] = Field(
+        default_factory=list, description="CLOSED EOD bars only, oldest first — never includes a provisional/intraday bar."
+    )
+    error: str | None = None
+
+
+class PulseItem(BaseModel):
+    ticker: str
+    metric: str = Field(description="'daily' | 'five_session' | 'twenty_session' | 'volume' — which editorial check triggered this item.")
+    pct_change: float | None = None
+    volume_multiple: float | None = None
+    direction: str = Field(description="'positive' or 'negative' — never meaningful for a pure volume trigger with no price context.")
+    observation_date: date
+    latest_close: float
+    note: str = Field(description="Plain-language reason this was surfaced, e.g. 'Up 6.2% over the last 5 sessions.'")
+
+
+class MarketPulseResponse(BaseModel):
+    items: list[PulseItem]
+    calculation_notes: str
+    as_of: datetime

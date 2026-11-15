@@ -38,6 +38,40 @@ export interface PortfolioQuotesResponse {
   calculation_notes: string;
 }
 
+export interface DailyBar {
+  trade_date: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  session_status: SessionStatus;
+}
+
+export interface PriceHistoryResponse {
+  ticker: string;
+  data_available: boolean;
+  bars: DailyBar[];
+  error: string | null;
+}
+
+export interface PulseItem {
+  ticker: string;
+  metric: "daily" | "five_session" | "twenty_session" | "volume";
+  pct_change: number | null;
+  volume_multiple: number | null;
+  direction: "positive" | "negative";
+  observation_date: string;
+  latest_close: number;
+  note: string;
+}
+
+export interface MarketPulseResponse {
+  items: PulseItem[];
+  calculation_notes: string;
+  as_of: string;
+}
+
 export type AnnouncementCategory =
   | "results"
   | "M&A"
@@ -181,9 +215,12 @@ export interface NumericAnswer {
   page_reference: number | null;
   original_source_url: string | null;
   reporting_period: string | null;
+  extraction_method: string;
+  unit_scale: string | null;
+  normalized_value: string | null;
 }
 
-export type ResearchAnswerType = "numeric_fact" | "evidence_digest" | "insufficient_evidence";
+export type ResearchAnswerType = "numeric_fact" | "evidence_digest" | "insufficient_evidence" | "ambiguous_metric";
 
 export interface SourceDocument {
   announcement_id: string;
@@ -254,5 +291,6 @@ export interface ResearchAskResponse {
   numeric_answer: NumericAnswer | null;
   evidence: HybridEvidenceChunk[];
   insufficient_evidence_reason: string | null;
+  metric_alternatives: string[] | null;
   generation_note: string;
 }

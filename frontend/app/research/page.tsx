@@ -18,10 +18,7 @@ export default function ResearchPage({
 }) {
   return (
     <div>
-      <PageHeader
-        title="Research"
-        subtitle="Pull: ask about a company, grounded strictly in its own filings — no outside sources, no fabricated figures."
-      />
+      <PageHeader title="Research" />
       <div className="p-4 md:p-8">
         <Suspense fallback={<ResearchAskForm />}>
           <ResearchFormWithParams searchParams={searchParams} />

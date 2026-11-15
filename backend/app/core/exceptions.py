@@ -85,6 +85,16 @@ class DocumentAlreadyClaimedError(FinnError):
     code = "document_already_claimed"
 
 
+class InvalidDateRangeError(FinnError):
+    """A caller-supplied custom date range (digest/events `start`/`end`) is
+    internally inconsistent - start after end. Caught here rather than letting
+    the comparison either raise an opaque error downstream or silently return
+    an empty/wrong result."""
+
+    status_code = 422
+    code = "invalid_date_range"
+
+
 class RetrievalQueryError(FinnError):
     """Wraps a postgrest.APIError raised by the match_document_chunks RPC itself
     (e.g. its own NULL/invalid-input guards, or a malformed company_id) into a clean

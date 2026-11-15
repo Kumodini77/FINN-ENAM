@@ -51,15 +51,31 @@ export function AlertsConfigForm() {
     return <div className="h-48 animate-pulse rounded-xl bg-[var(--color-border)]/50" />;
   }
 
+  const activeCategoryLabels = config.alert_categories.map(categoryLabel);
+
   return (
     <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
-      <h3 className="text-[15px] font-semibold text-[var(--color-ink)]">Threshold settings</h3>
-      <p className="mt-1 text-[13px] text-[var(--color-ink-muted)]">
-        You decide what counts as unusual — FINN watches for it. Evaluated each time market data refreshes or a filing
-        is imported, not continuously.
-      </p>
+      <h3 className="text-[15px] font-semibold text-[var(--color-ink)]">Watch rules</h3>
 
-      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <ul className="mt-3 space-y-1.5 text-[13px] text-[var(--color-ink)]">
+        <li className="flex items-start gap-2">
+          <span className="mt-0.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-positive)]" />
+          Notify me when a portfolio company moves more than <strong>{config.price_move_pct}%</strong> in a day (EOD).
+        </li>
+        <li className="flex items-start gap-2">
+          <span className="mt-0.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-positive)]" />
+          Notify me when a portfolio company&apos;s volume exceeds <strong>{config.volume_spike_multiple}×</strong> its recent average (EOD).
+        </li>
+        <li className="flex items-start gap-2">
+          <span className="mt-0.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-positive)]" />
+          Notify me when a portfolio company announces{" "}
+          {activeCategoryLabels.length > 0 ? activeCategoryLabels.join(", ") : "nothing (no categories selected)"}.
+        </li>
+      </ul>
+
+      <h4 className="mt-5 text-[13px] font-semibold text-[var(--color-ink)]">Edit thresholds</h4>
+
+      <div className="mt-2 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <label className="block">
           <span className="text-[13px] font-medium text-[var(--color-ink)]">Volume spike multiple</span>
           <div className="mt-1 flex items-center gap-2">

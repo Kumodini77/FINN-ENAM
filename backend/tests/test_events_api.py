@@ -38,9 +38,8 @@ def seeded_announcements(tmp_path, monkeypatch):
     repo.add(results)
     repo.add(concall)
 
-    from app.core.companies import PORTFOLIO
-
-    monkeypatch.setattr("app.api.events.PORTFOLIO", [c for c in PORTFOLIO if c.ticker == "HDFCBANK"] or PORTFOLIO)
+    fake_portfolio = type("FakePortfolio", (), {"list_tickers": lambda self: {"HDFCBANK"}})()
+    monkeypatch.setattr("app.api.events.PortfolioRepository", lambda: fake_portfolio)
     monkeypatch.setattr("app.api.events.AnnouncementRepository", lambda: repo)
     return repo
 

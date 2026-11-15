@@ -45,6 +45,9 @@ class NumericAnswerOut(BaseModel):
     page_reference: int | None
     original_source_url: str | None
     reporting_period: str | None
+    extraction_method: str
+    unit_scale: str | None = None
+    normalized_value: str | None = None
 
 
 class ResearchAskResponse(BaseModel):
@@ -52,10 +55,15 @@ class ResearchAskResponse(BaseModel):
     company_id: str
     question: str
     intents: list[str]
-    answer_type: str  # "numeric_fact" | "evidence_digest" | "insufficient_evidence"
+    answer_type: str  # "numeric_fact" | "evidence_digest" | "insufficient_evidence" | "ambiguous_metric"
     numeric_answer: NumericAnswerOut | None = None
     evidence: list[HybridEvidenceChunk]
     insufficient_evidence_reason: str | None = None
+    metric_alternatives: list[str] | None = None
+    """Populated only when answer_type is "ambiguous_metric": the row labels the
+    question's wording matched without being able to tell which one was meant (e.g.
+    "Reported PAT" and "Adjusted PAT" for a question that just says "PAT") - the
+    caller should ask the user to pick one rather than guessing."""
     generation_note: str
     """Always present, always honest: states plainly that no LLM-based answer
     generation is configured in this build, so `evidence`/`numeric_answer` are

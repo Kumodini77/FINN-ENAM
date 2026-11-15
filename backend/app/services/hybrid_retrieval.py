@@ -137,7 +137,7 @@ def retrieve_hybrid_evidence(
     search isn't available (JSON-fallback backend), proceeds lexical-only rather
     than refusing outright, since the lexical path works on either backend."""
     repo = repo or DocumentRepository()
-    ticker = company_ticker.upper()
+    ticker = company_ticker.strip().upper()
     # get_company_id() is Supabase-only (it resolves a real companies.id uuid FK);
     # calling it when the backend isn't Supabase would crash on a None client, not
     # raise a clean error. The JSON-fallback DocumentRepository has no such FK

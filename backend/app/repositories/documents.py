@@ -33,7 +33,7 @@ from app.core.config import get_settings
 from app.core.db import get_supabase_client, storage_backend_name
 from app.core.exceptions import DocumentAlreadyClaimedError, DocumentExistingConflictError, DocumentMetadataConflictError
 from app.models.document import Document, DocumentChunk, IngestionStatus
-from app.repositories.company_lookup import get_ticker
+from app.repositories.company_lookup import get_company_id, get_ticker
 from app.repositories.json_store import JsonListStore
 
 logger = logging.getLogger("finn.repositories.documents")
@@ -117,6 +117,21 @@ class DocumentRepository:
             ):
                 return Document.model_validate(row)
         return None
+
+    def list_documents_for_ticker(self, company_ticker: str) -> list[Document]:
+        """Every document on record for this ticker, any ingestion_status - the
+        caller (e.g. research-readiness checks) decides what to do with
+        pending/failed vs completed; this never filters that itself, so it stays a
+        single source of truth for "what do we have," not "what's usable."""
+        ticker = company_ticker.strip().upper()
+        if self._backend() == "supabase":
+            company_id = get_company_id(ticker)
+            if company_id is None:
+                return []
+            client = get_supabase_client()
+            resp = client.table("documents").select("*").eq("company_id", company_id).execute()
+            return [_from_db_row(r) for r in (resp.data or [])]
+        return [Document.model_validate(r) for r in self._store.read_all() if r.get("company_ticker") == ticker]
 
     # --- creation / dedup ----------------------------------------------------------
 

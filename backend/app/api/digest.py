@@ -2,8 +2,8 @@ from datetime import datetime
 
 from fastapi import APIRouter, Query
 
-from app.core.companies import PORTFOLIO
 from app.models.announcement import AnnouncementCategory
+from app.repositories.portfolio import PortfolioRepository
 from app.schemas.digest import DigestItemOut, DigestResponse
 from app.services.digest import build_digest, resolve_window
 
@@ -17,7 +17,10 @@ def get_digest(
     end: datetime | None = None,
     categories: list[AnnouncementCategory] | None = Query(default=None),
 ) -> DigestResponse:
-    tickers = {c.ticker for c in PORTFOLIO}
+    # Real, mutable portfolio membership (app/repositories/portfolio.py) - not the
+    # static app.core.companies.PORTFOLIO constant, which is bootstrap seed data
+    # only. Adding/removing a portfolio company here requires no code change.
+    tickers = PortfolioRepository().list_tickers()
     window_start, window_end = resolve_window(window_hours, start, end)
     category_set = set(categories) if categories else None
 

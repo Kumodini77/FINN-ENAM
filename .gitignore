@@ -38,3 +38,11 @@ Thumbs.db
 .vscode/
 .idea/
 scripts/spikes/fundamentals_access_spike/extracted/
+# Local environment secrets
+.env
+.env.*
+!.env.example
+
+# Local company research PDFs
+scripts/spikes/fundamentals_access_spike/documents/*.pdf
+scripts/spikes/fundamentals_access_spike/documents/manual_inbox/

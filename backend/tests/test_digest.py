@@ -1,5 +1,8 @@
 from datetime import datetime, timedelta, timezone
 
+import pytest
+
+from app.core.exceptions import InvalidDateRangeError
 from app.models.announcement import Announcement, AnnouncementCategory, PriorityLevel
 from app.repositories.announcements import AnnouncementRepository, new_announcement_id
 from app.repositories.json_store import JsonListStore
@@ -41,6 +44,63 @@ def test_resolve_window_explicit_start_end_overrides_window_hours():
     custom_start = now - timedelta(days=30)
     start, end = resolve_window(window_hours=24, start=custom_start, end=now, now=now)
     assert start == custom_start
+
+
+# --- Custom date-range filter: boundaries, invalid ranges, timezone handling ---
+
+
+def test_resolve_window_normalizes_naive_start_and_end_to_utc():
+    """A bare date like "2026-07-01" from an HTML date input parses to a
+    timezone-NAIVE datetime - this must not crash when later compared against
+    timezone-AWARE announcement.filed_at values (the real bug this guards)."""
+    naive_start = datetime(2026, 7, 1)
+    naive_end = datetime(2026, 7, 2)
+    start, end = resolve_window(window_hours=None, start=naive_start, end=naive_end)
+    assert start.tzinfo is not None and end.tzinfo is not None
+    assert start == datetime(2026, 7, 1, tzinfo=timezone.utc)
+    assert end == datetime(2026, 7, 2, tzinfo=timezone.utc)
+
+
+def test_resolve_window_rejects_start_after_end():
+    now = datetime(2026, 11, 13, 12, 0, tzinfo=timezone.utc)
+    with pytest.raises(InvalidDateRangeError):
+        resolve_window(window_hours=None, start=now, end=now - timedelta(days=1))
+
+
+def test_resolve_window_allows_start_equal_to_end():
+    """A single-day range (same start/end instant) is a valid edge case, not an error."""
+    now = datetime(2026, 11, 13, 12, 0, tzinfo=timezone.utc)
+    start, end = resolve_window(window_hours=None, start=now, end=now)
+    assert start == end == now
+
+
+def test_custom_range_includes_items_exactly_on_the_boundary(tmp_path):
+    """An announcement filed exactly at window_start or window_end must be
+    included - the comparison is inclusive on both ends."""
+    repo = _repo(tmp_path)
+    start = datetime(2026, 7, 1, tzinfo=timezone.utc)
+    end = datetime(2026, 7, 2, 23, 59, 59, 999000, tzinfo=timezone.utc)
+    repo.add(_announcement("RELIANCE", "Exactly at start", start, AnnouncementCategory.RESULTS, PriorityLevel.HIGH))
+    repo.add(_announcement("RELIANCE", "Exactly at end", end, AnnouncementCategory.RESULTS, PriorityLevel.HIGH))
+    repo.add(_announcement("RELIANCE", "Just before start", start - timedelta(seconds=1), AnnouncementCategory.RESULTS, PriorityLevel.HIGH))
+    repo.add(_announcement("RELIANCE", "Just after end", end + timedelta(seconds=1), AnnouncementCategory.RESULTS, PriorityLevel.HIGH))
+
+    result = build_digest({"RELIANCE"}, start, end, repo=repo)
+
+    titles = {item.announcement.title for item in result.items}
+    assert titles == {"Exactly at start", "Exactly at end"}
+
+
+def test_custom_range_with_no_matching_announcements_is_a_clean_empty_result(tmp_path):
+    repo = _repo(tmp_path)
+    repo.add(_announcement("RELIANCE", "Unrelated date", datetime(2020, 1, 1, tzinfo=timezone.utc), AnnouncementCategory.RESULTS, PriorityLevel.HIGH))
+    start = datetime(2026, 7, 1, tzinfo=timezone.utc)
+    end = datetime(2026, 7, 31, tzinfo=timezone.utc)
+
+    result = build_digest({"RELIANCE"}, start, end, repo=repo)
+
+    assert result.total_count == 0
+    assert result.items == []
 
 
 def test_digest_excludes_items_outside_the_window(tmp_path):

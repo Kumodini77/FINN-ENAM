@@ -25,7 +25,7 @@ import pandas as pd
 import yfinance as yf
 
 from app.core.config import get_settings
-from app.schemas.market_data import PriceQuote, SessionStatus
+from app.schemas.market_data import DailyBar, MarketPulseResponse, PriceQuote, PriceHistoryResponse, PulseItem, SessionStatus
 
 logger = logging.getLogger("finn.market_data")
 
@@ -128,6 +128,161 @@ def build_price_quote(ticker: str, yfinance_symbol: str, hist: pd.DataFrame | No
 
 def get_quote(ticker: str, yfinance_symbol: str) -> PriceQuote:
     return build_price_quote(ticker, yfinance_symbol)
+
+
+def get_price_history(ticker: str, yfinance_symbol: str, days: int = 30, hist: pd.DataFrame | None = None) -> PriceHistoryResponse:
+    """CLOSED EOD daily bars for a sparkline/small chart — the last `days`
+    closed trading sessions, oldest first. Reuses fetch_history (the exact
+    same real yfinance call build_price_quote already uses) rather than a
+    second data path; never fabricates a bar for a day with no real data
+    (a provisional/intraday "today" row is excluded the same way
+    build_price_quote excludes it from its own averages)."""
+    if hist is None:
+        hist = fetch_history(yfinance_symbol, period="3mo")
+
+    if hist is None or hist.empty:
+        return PriceHistoryResponse(ticker=ticker, data_available=False, error="No data returned by yfinance for this symbol.")
+
+    hist = hist.sort_index()
+    today = _today_ist()
+    is_today = hist.index.tz_convert(IST).normalize() == today
+    closed = hist.loc[~is_today]
+
+    if closed.empty:
+        return PriceHistoryResponse(ticker=ticker, data_available=False, error="No closed EOD bars available yet.")
+
+    window = closed.tail(max(days, 1))
+    bars = [
+        DailyBar(
+            trade_date=idx.tz_convert(IST).date(), open=round(float(row["Open"]), 4), high=round(float(row["High"]), 4),
+            low=round(float(row["Low"]), 4), close=round(float(row["Close"]), 4), volume=int(row["Volume"]),
+            session_status=SessionStatus.CLOSED_EOD,
+        )
+        for idx, row in window.iterrows()
+    ]
+    return PriceHistoryResponse(ticker=ticker, data_available=True, bars=bars)
+
+
+# Editorial thresholds for "Market pulse" (Daily Intelligence) — fixed,
+# documented constants, NEVER the user's own configured alert thresholds
+# (AlertsConfig.volume_spike_multiple / price_move_pct). A 1.5% move can be
+# "interesting enough" to surface here while being well under a user's 3%
+# alert threshold — that distinction is the whole point of this function;
+# see docs/FINN_DAILY_INTELLIGENCE_UPGRADE.md.
+PULSE_DAILY_PCT_THRESHOLD = 2.0
+PULSE_FIVE_SESSION_PCT_THRESHOLD = 5.0
+PULSE_TWENTY_SESSION_PCT_THRESHOLD = 10.0
+PULSE_VOLUME_MULTIPLE_THRESHOLD = 1.5
+
+
+def _pct_change(latest: float, earlier: float) -> float | None:
+    if not earlier:
+        return None
+    return round((latest - earlier) / earlier * 100, 2)
+
+
+def compute_pulse_item(ticker: str, yfinance_symbol: str, hist: pd.DataFrame | None = None) -> PulseItem | None:
+    """One company's editorial 'is this interesting enough to surface' check —
+    never the user's own alert thresholds. Picks at most ONE reason per
+    company (the one whose magnitude most exceeds its own threshold, as a
+    ratio) so a company never gets duplicate pulse cards. Returns None if
+    nothing crosses any threshold, or if there isn't enough real history to
+    judge — never fabricates a signal from insufficient data."""
+    if hist is None:
+        hist = fetch_history(yfinance_symbol, period="2mo")
+    if hist is None or hist.empty:
+        return None
+
+    hist = hist.sort_index()
+    today = _today_ist()
+    is_today = hist.index.tz_convert(IST).normalize() == today
+    closed = hist.loc[~is_today]
+    if len(closed) < 2:
+        return None
+
+    closes = closed["Close"].tolist()
+    volumes = closed["Volume"].tolist()
+    latest_close = float(closes[-1])
+    observation_date = closed.index[-1].tz_convert(IST).date()
+
+    candidates: list[tuple[float, PulseItem]] = []  # (severity_ratio, item)
+
+    daily_pct = _pct_change(latest_close, float(closes[-2]))
+    if daily_pct is not None and abs(daily_pct) >= PULSE_DAILY_PCT_THRESHOLD:
+        candidates.append(
+            (
+                abs(daily_pct) / PULSE_DAILY_PCT_THRESHOLD,
+                PulseItem(
+                    ticker=ticker, metric="daily", pct_change=daily_pct, direction="positive" if daily_pct > 0 else "negative",
+                    observation_date=observation_date, latest_close=latest_close,
+                    note=f"{'Up' if daily_pct > 0 else 'Down'} {abs(daily_pct):.1f}% today.",
+                ),
+            )
+        )
+
+    if len(closes) >= 6:
+        five_pct = _pct_change(latest_close, float(closes[-6]))
+        if five_pct is not None and abs(five_pct) >= PULSE_FIVE_SESSION_PCT_THRESHOLD:
+            candidates.append(
+                (
+                    abs(five_pct) / PULSE_FIVE_SESSION_PCT_THRESHOLD,
+                    PulseItem(
+                        ticker=ticker, metric="five_session", pct_change=five_pct, direction="positive" if five_pct > 0 else "negative",
+                        observation_date=observation_date, latest_close=latest_close,
+                        note=f"{'Up' if five_pct > 0 else 'Down'} {abs(five_pct):.1f}% over the last 5 sessions.",
+                    ),
+                )
+            )
+
+    if len(closes) >= 21:
+        twenty_pct = _pct_change(latest_close, float(closes[-21]))
+        if twenty_pct is not None and abs(twenty_pct) >= PULSE_TWENTY_SESSION_PCT_THRESHOLD:
+            candidates.append(
+                (
+                    abs(twenty_pct) / PULSE_TWENTY_SESSION_PCT_THRESHOLD,
+                    PulseItem(
+                        ticker=ticker, metric="twenty_session", pct_change=twenty_pct, direction="positive" if twenty_pct > 0 else "negative",
+                        observation_date=observation_date, latest_close=latest_close,
+                        note=f"{'Up' if twenty_pct > 0 else 'Down'} {abs(twenty_pct):.1f}% over the last 20 sessions.",
+                    ),
+                )
+            )
+
+    if len(volumes) >= 6:
+        baseline_volumes = volumes[-21:-1] if len(volumes) >= 21 else volumes[:-1]
+        avg_volume = sum(baseline_volumes) / len(baseline_volumes) if baseline_volumes else 0
+        if avg_volume:
+            multiple = volumes[-1] / avg_volume
+            if multiple >= PULSE_VOLUME_MULTIPLE_THRESHOLD:
+                candidates.append(
+                    (
+                        multiple / PULSE_VOLUME_MULTIPLE_THRESHOLD,
+                        PulseItem(
+                            ticker=ticker, metric="volume", volume_multiple=round(multiple, 2), direction="positive" if daily_pct and daily_pct > 0 else "negative",
+                            observation_date=observation_date, latest_close=latest_close,
+                            note=f"Volume {multiple:.1f}× its recent average.",
+                        ),
+                    )
+                )
+
+    if not candidates:
+        return None
+    candidates.sort(key=lambda c: c[0], reverse=True)
+    return candidates[0][1]
+
+
+def compute_market_pulse(companies: list[tuple[str, str]]) -> MarketPulseResponse:
+    """`companies` is [(ticker, yfinance_symbol), ...] — reads live portfolio
+    membership, never a hardcoded ticker list (callers pass that in)."""
+    items = [item for ticker, symbol in companies if (item := compute_pulse_item(ticker, symbol)) is not None]
+    items.sort(key=lambda i: abs(i.pct_change or i.volume_multiple or 0), reverse=True)
+    notes = (
+        f"Market pulse surfaces a company when its daily move is >= {PULSE_DAILY_PCT_THRESHOLD}%, its 5-session move is "
+        f">= {PULSE_FIVE_SESSION_PCT_THRESHOLD}%, its 20-session move is >= {PULSE_TWENTY_SESSION_PCT_THRESHOLD}%, or its "
+        f"volume is >= {PULSE_VOLUME_MULTIPLE_THRESHOLD}x its recent average — fixed editorial thresholds, not your "
+        "configured alert thresholds (see Alerts). All figures are EOD, never real-time."
+    )
+    return MarketPulseResponse(items=items, calculation_notes=notes, as_of=datetime.now(timezone.utc))
 
 
 CALCULATION_NOTES = (

@@ -45,6 +45,7 @@ def resolve_company(ticker: str, verify: Callable[[str], dict] | None = None) ->
     CompanyLookupError if it's neither seeded nor verifiable. `verify` is injectable
     purely for tests, so exercising the unseeded path never requires a real network
     call unless the caller wants one."""
+    ticker = ticker.strip().upper()
     seed = get_seed_company(ticker)
     if seed is not None:
         return ResolvedCompany(
@@ -59,7 +60,7 @@ def resolve_company(ticker: str, verify: Callable[[str], dict] | None = None) ->
     verify = verify or _default_verifier
     metadata = verify(ticker)
     return ResolvedCompany(
-        ticker=ticker.upper(),
+        ticker=ticker,
         name=metadata["name"],
         exchange=metadata["exchange"],
         sector=metadata.get("sector"),

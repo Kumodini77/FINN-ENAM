@@ -8,6 +8,7 @@ API route (app/api/digest.py) is a thin wrapper around this.
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
+from app.core.exceptions import InvalidDateRangeError
 from app.models.announcement import Announcement, AnnouncementCategory, PriorityLevel
 from app.repositories.announcements import AnnouncementRepository
 from app.services.priority import is_routine
@@ -35,9 +36,24 @@ def resolve_window(
     now: datetime | None = None,
 ) -> tuple[datetime, datetime]:
     """Explicit start/end wins; otherwise a rolling window of `window_hours` ending now.
-    Defaults to 24h per requirements.md, with a documented 7-day (168h) shortcut."""
+    Defaults to 24h per requirements.md, with a documented 7-day (168h) shortcut.
+
+    A caller-supplied start/end may arrive timezone-naive (e.g. a bare date like
+    "2026-07-01" from an HTML date input, parsed by FastAPI into a naive
+    datetime) - normalized to UTC here, the same assumption already applied to
+    naive `filed_at` values in build_digest()/the events API's in_window(), so
+    the two are always comparable rather than raising "can't compare
+    offset-naive and offset-aware datetimes" on every custom-range request.
+    Raises InvalidDateRangeError if both are given and start is after end -
+    never silently returns an empty or reversed window."""
     now = now or datetime.now(timezone.utc)
     if start is not None and end is not None:
+        if start.tzinfo is None:
+            start = start.replace(tzinfo=timezone.utc)
+        if end.tzinfo is None:
+            end = end.replace(tzinfo=timezone.utc)
+        if start > end:
+            raise InvalidDateRangeError(f"start ({start.isoformat()}) is after end ({end.isoformat()}).")
         return start, end
     hours = window_hours if window_hours is not None else 24
     return now - timedelta(hours=hours), now

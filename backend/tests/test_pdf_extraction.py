@@ -7,7 +7,11 @@ from pathlib import Path
 
 import pytest
 
-from app.services.pdf_extraction import extract_pages, normalize_numeric_value
+import re
+
+from app.services.pdf_extraction import ProseBlock, UnparsedBlock, extract_pages, normalize_numeric_value
+
+_WORD_RE = re.compile(r"[A-Za-z]{3,}")
 
 HDFC_PDF = Path(__file__).parent.parent.parent / "scripts" / "spikes" / "fundamentals_access_spike" / "documents" / "hdfcbank_earnings_presentation.pdf"
 
@@ -93,3 +97,108 @@ def test_normalize_numeric_value_handles_parens_and_percent():
     assert normalize_numeric_value("(2.9%)") == -2.9
     assert normalize_numeric_value("314.4") == 314.4
     assert normalize_numeric_value("1,234.5") == 1234.5
+
+
+# --- Regression: page 17's rotated NPA-chart text must never surface as unflagged
+# prose (live-reported bug - a "gross/net NPA" question returned this garbled text
+# as if it were reliable evidence). Ground truth hand-verified against the visible
+# PDF: page 17 is a "Resilient asset quality" slide with a rotated bar-chart axis
+# (quarter + GNPA/NNPA % labels drawn as rotated glyphs) that pdfplumber's
+# extract_text() misorders into character-interleaved nonsense, plus several
+# isolated chart-value fragments (e.g. "1.2% 1.1%") with no row-label context.
+
+
+def test_page17_garbled_axis_text_is_never_classified_as_plain_prose(pages):
+    page17 = pages[16]
+    assert not any(b.kind == "table_row_group" for b in page17.blocks)
+    for block in page17.blocks:
+        if block.kind != "prose":
+            continue
+        lines = [l for l in block.text.split("\n") if l.strip()]
+        no_word_lines = sum(1 for l in lines if not _WORD_RE.search(l))
+        assert not (len(lines) >= 2 and no_word_lines / len(lines) > 0.5), (
+            f"A prose block on page 17 is mostly word-less lines - looks like the "
+            f"garbled-axis regression reappeared: {block.text!r}"
+        )
+
+
+def test_page17_garbled_axis_run_is_flagged_table_unparsed_with_manual_review(pages):
+    page17 = pages[16]
+    unparsed_texts = [b.text for b in page17.blocks if b.kind == "table_unparsed"]
+    assert unparsed_texts, "page 17 should produce at least one table_unparsed block from its rotated chart"
+    # The specific garbled run reported live: real fragments pulled straight from
+    # pdfplumber's actual (mis-ordered) output for this page - not fabricated.
+    combined = "\n".join(unparsed_texts)
+    for fragment in ["N N P A", "1 . 4", "1 . 2"]:
+        assert fragment in combined, f"expected garbled fragment {fragment!r} to be captured in an UnparsedBlock, not lost"
+
+
+def test_page17_isolated_chart_percentages_without_row_labels_are_flagged(pages):
+    """Short standalone chart-value lines (e.g. "1.2% 1.1%", "0.7% 0.7%") have no
+    row-label context at all and must never be treated as reliable prose either."""
+    page17 = pages[16]
+    unparsed_texts = [b.text for b in page17.blocks if b.kind == "table_unparsed"]
+    assert any("1.2% 1.1%" in t for t in unparsed_texts)
+    assert any("0.7% 0.7%" in t for t in unparsed_texts)
+
+
+def test_no_page_in_the_real_document_has_a_residual_garbled_prose_block(pages):
+    """Whole-document sweep: after the fix, zero prose blocks anywhere should be
+    dominated by word-less lines - the failure mode must be fully closed, not just
+    patched for page 17 specifically."""
+    offenders = []
+    for page in pages:
+        for block in page.blocks:
+            if block.kind != "prose":
+                continue
+            lines = [l for l in block.text.split("\n") if l.strip()]
+            if len(lines) < 2:
+                continue
+            no_word_lines = sum(1 for l in lines if not _WORD_RE.search(l))
+            if no_word_lines / len(lines) > 0.6:
+                offenders.append((page.page_number, block.text[:80]))
+    assert offenders == [], f"residual garbled prose blocks found: {offenders}"
+
+
+# --- Representative broken-text unit tests (synthetic, generic - not HDFC/NPA-specific) ---
+
+
+def test_rotated_axis_style_fragments_are_flagged_not_treated_as_prose():
+    """Synthetic reproduction of the general failure class: short, word-less,
+    character-interleaved fragments (as pdfplumber produces for rotated text)."""
+    from app.services.pdf_extraction import _extract_blocks_from_text
+
+    raw_text = "1 . 2\nJ\n%\nu n\n'2\n5\nReal heading text here\nNormal prose sentence follows."
+    blocks = _extract_blocks_from_text(raw_text, page_number=1)
+    kinds = [b.kind for b in blocks]
+    assert "table_unparsed" in kinds
+    unparsed = [b for b in blocks if b.kind == "table_unparsed"][0]
+    assert isinstance(unparsed, UnparsedBlock)
+    assert unparsed.reason
+    prose_blocks = [b for b in blocks if b.kind == "prose"]
+    assert any("Real heading text here" in b.text for b in prose_blocks)
+    assert any("Normal prose sentence follows." in b.text for b in prose_blocks)
+
+
+def test_a_single_isolated_short_line_is_not_falsely_flagged():
+    """One stray short/word-less line alone (not a sustained run) is not strong
+    enough evidence of garbled text - avoids over-flagging an incidental artifact
+    like a lone page-footer digit."""
+    from app.services.pdf_extraction import _extract_blocks_from_text
+
+    raw_text = "This is an ordinary sentence.\n4\nAnother ordinary sentence follows here."
+    blocks = _extract_blocks_from_text(raw_text, page_number=1)
+    assert not any(b.kind == "table_unparsed" for b in blocks)
+    assert all(isinstance(b, ProseBlock) for b in blocks)
+
+
+def test_real_table_rows_are_unaffected_by_the_garbled_text_detector():
+    """A genuine data row/table must still be classified normally - the new
+    detector only ever applies to lines that already failed the data-row and
+    numeric-only-line checks."""
+    from app.services.pdf_extraction import _extract_blocks_from_text
+
+    raw_text = "Metric Q1 FY26 Q1 FY27\nRevenue 100.0 110.0\nProfit 20.0 25.0"
+    blocks = _extract_blocks_from_text(raw_text, page_number=1)
+    assert any(b.kind == "table_row_group" for b in blocks)
+    assert not any(b.kind == "table_unparsed" for b in blocks)

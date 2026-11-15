@@ -19,6 +19,7 @@ isn't configured/reachable). Does not bulk-ingest - exactly one PDF per invocati
 
 import argparse
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -29,6 +30,68 @@ from app.repositories.company_lookup import get_or_register_company_id
 from app.repositories.documents import DocumentRepository
 from app.services.embeddings import get_embedding_provider
 from app.services.ingestion import IngestionError, ingest_document
+
+
+@dataclass
+class OneDocumentOutcome:
+    """Structured result of a single-document ingestion attempt - used by both
+    this CLI's main() and scripts/ingest_documents_batch.py, so the real
+    validate -> resolve-ticker -> ingest sequence (and its exact exception
+    handling) exists in exactly one place."""
+
+    status: str  # "success" | "reused" | "conflict" | "failed"
+    message: str
+    document_id: str | None = None
+    chunk_count: int | None = None
+
+
+def ingest_one_document(
+    *, pdf_path: str, ticker: str, doc_type: str, reporting_period: str | None, source_url: str
+) -> OneDocumentOutcome:
+    """The reusable core of a single document's ingestion: file validation,
+    ticker resolution (auto-registers via verified yfinance metadata if the
+    ticker isn't already a known company - never fabricated), and the ingest
+    call itself. Never raises - every outcome, including a failure, comes back
+    as a OneDocumentOutcome so a caller looping over many documents/companies
+    can continue past one failure without a try/except of its own."""
+    path = Path(pdf_path)
+    if not path.is_file():
+        return OneDocumentOutcome(status="failed", message=f"file not found: {path}")
+    if path.suffix.lower() != ".pdf":
+        return OneDocumentOutcome(status="failed", message=f"only .pdf files are supported, got: {path}")
+    if path.stat().st_size == 0:
+        return OneDocumentOutcome(status="failed", message=f"file is empty: {path}")
+
+    try:
+        company_id = get_or_register_company_id(ticker)
+    except Exception as e:
+        return OneDocumentOutcome(status="failed", message=f"could not resolve ticker '{ticker}': {e}")
+
+    repo = DocumentRepository()
+    provider = get_embedding_provider()
+
+    try:
+        result = ingest_document(
+            file_path=str(path),
+            company_id=company_id,
+            company_ticker=ticker.strip().upper(),
+            doc_type=doc_type,
+            reporting_period=reporting_period,
+            original_source_url=source_url,
+            repo=repo,
+            embedding_provider=provider,
+        )
+    except (DocumentMetadataConflictError, DocumentExistingConflictError, DocumentAlreadyClaimedError) as e:
+        return OneDocumentOutcome(status="conflict", message=e.message)
+    except IngestionError as e:
+        return OneDocumentOutcome(status="failed", message=str(e))
+
+    return OneDocumentOutcome(
+        status="reused" if result.reused else "success",
+        message="already ingested (reused existing completed document)" if result.reused else "ingested successfully",
+        document_id=result.document.id,
+        chunk_count=result.chunk_count,
+    )
 
 
 def parse_args() -> argparse.Namespace:
@@ -44,19 +107,8 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    pdf_path = Path(args.pdf)
-    if not pdf_path.is_file():
-        print(f"ERROR: file not found: {pdf_path}")
-        sys.exit(1)
-    if pdf_path.suffix.lower() != ".pdf":
-        print(f"ERROR: only .pdf files are supported, got: {pdf_path}")
-        sys.exit(1)
-    if pdf_path.stat().st_size == 0:
-        print(f"ERROR: file is empty: {pdf_path}")
-        sys.exit(1)
-
     print("FINN document ingestion")
-    print(f"  file:              {pdf_path} ({pdf_path.stat().st_size:,} bytes)")
+    print(f"  file:              {args.pdf}")
     print(f"  ticker:            {args.ticker}")
     print(f"  doc_type:          {args.doc_type}")
     print(f"  reporting_period:  {args.reporting_period or '(none)'}")
@@ -64,38 +116,21 @@ def main() -> None:
     if args.title:
         print(f"  title:             {args.title}")
 
-    try:
-        company_id = get_or_register_company_id(args.ticker)
-    except Exception as e:
-        print(f"ERROR: could not resolve ticker '{args.ticker}': {e}")
-        sys.exit(1)
-
-    repo = DocumentRepository()
-    provider = get_embedding_provider()
-
-    try:
-        result = ingest_document(
-            file_path=str(pdf_path),
-            company_id=company_id,
-            company_ticker=args.ticker.upper(),
-            doc_type=args.doc_type,
-            reporting_period=args.reporting_period,
-            original_source_url=args.source_url,
-            repo=repo,
-            embedding_provider=provider,
-        )
-    except (DocumentMetadataConflictError, DocumentExistingConflictError, DocumentAlreadyClaimedError) as e:
-        print(f"CONFLICT: {e.message}")
-        sys.exit(2)
-    except IngestionError as e:
-        print(f"FAILED: {e}")
-        sys.exit(3)
+    outcome = ingest_one_document(
+        pdf_path=args.pdf, ticker=args.ticker, doc_type=args.doc_type,
+        reporting_period=args.reporting_period, source_url=args.source_url,
+    )
 
     print()
-    print("ALREADY INGESTED (reused existing completed document)" if result.reused else "SUCCESS")
-    print(f"  document_id: {result.document.id}")
-    print(f"  status:      {result.document.ingestion_status.value}")
-    print(f"  chunks:      {result.chunk_count}")
+    if outcome.status == "failed":
+        print(f"FAILED: {outcome.message}")
+        sys.exit(3)
+    if outcome.status == "conflict":
+        print(f"CONFLICT: {outcome.message}")
+        sys.exit(2)
+    print("ALREADY INGESTED (reused existing completed document)" if outcome.status == "reused" else "SUCCESS")
+    print(f"  document_id: {outcome.document_id}")
+    print(f"  chunks:      {outcome.chunk_count}")
 
 
 if __name__ == "__main__":

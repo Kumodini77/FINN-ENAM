@@ -46,6 +46,50 @@ class Settings(BaseSettings):
     API calls for embeddings) — see app/services/embeddings/ for the provider
     abstraction if a second option is ever added."""
 
+    admin_api_token: str | None = None
+    """Shared-secret header value (X-Admin-Token) required by /api/admin/* routes.
+    When unset, those routes refuse all requests (503) rather than being left open —
+    see app/api/admin.py. No default/baked-in value, per the no-hardcoded-secret rule
+    at the top of this file."""
+
+    enable_market_data_scheduler: bool = False
+    """Whether app.main starts the in-process APScheduler for the EOD market-data
+    refresh job on app startup. Off by default — see docs/FINN_PHASE_12A_REPORT.md
+    for why an in-process scheduler alone is not a durable production mechanism on a
+    dyno that can idle/restart, and for the recommended external-cron alternative
+    (scripts/run_market_data_refresh.py)."""
+
+    market_data_refresh_cron: str = "0 18 * * 1-5"
+    """Standard 5-field cron expression (minute hour day month weekday), interpreted
+    in Asia/Kolkata. Default 18:00 IST Mon-Fri — well after NSE's 15:30 IST close,
+    giving yfinance's own upstream time to finalize the day's EOD bar."""
+
+    enable_document_discovery_scheduler: bool = False
+    """Same in-process-vs-external-cron tradeoff as enable_market_data_scheduler
+    (see docs/FINN_PHASE_12A_REPORT.md §4) — off by default."""
+
+    document_discovery_cron: str = "30 19 * * 1-5"
+    """Default 19:30 IST Mon-Fri — after the market-data refresh's default slot,
+    so the two scheduled jobs don't compete for the same minute."""
+
+    document_discovery_max_new_docs_per_company: int = 6
+    """Backfill limit per company per run — enough for ~4 recent quarters'
+    transcripts plus 1-2 recent annual reports, never an unbounded archive
+    download (see Phase 12B's own instruction against indiscriminate backfill)."""
+
+    document_discovery_lookback_quarters: int = 4
+    """How many of the most recent concall/transcript periods to consider per
+    company — matches the 'four-quarter comparison' need called out in the
+    Phase 12B brief, not an arbitrary number."""
+
+    enable_announcement_discovery_scheduler: bool = False
+    """Same in-process-vs-external-cron tradeoff as the other two schedulers
+    (see docs/FINN_PHASE_12A_REPORT.md §4) — off by default."""
+
+    announcement_discovery_cron: str = "0 17 * * 1-5"
+    """Default 17:00 IST Mon-Fri — before the market-data (18:00) and document
+    (19:30) slots, so announcements (typically same-day news) surface first."""
+
     @property
     def supabase_configured(self) -> bool:
         return bool(self.supabase_url and self.supabase_key)

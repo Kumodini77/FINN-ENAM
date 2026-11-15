@@ -7,7 +7,9 @@ import type {
   CompanyListResponse,
   DigestResponse,
   EventsResponse,
+  MarketPulseResponse,
   PortfolioQuotesResponse,
+  PriceHistoryResponse,
   PriceQuote,
   ResearchAskResponse,
 } from "@/types/api";
@@ -55,6 +57,14 @@ export async function fetchPortfolioQuotes(): Promise<PortfolioQuotesResponse> {
 
 export async function fetchQuote(ticker: string): Promise<PriceQuote> {
   return request<PriceQuote>(`/market-data/${ticker}`);
+}
+
+export async function fetchPriceHistory(ticker: string, days = 30): Promise<PriceHistoryResponse> {
+  return request<PriceHistoryResponse>(`/market-data/${ticker}/history?days=${days}`);
+}
+
+export async function fetchMarketPulse(): Promise<MarketPulseResponse> {
+  return request<MarketPulseResponse>("/market-data/portfolio/pulse");
 }
 
 export async function fetchDigest(params: {
@@ -106,9 +116,16 @@ export async function importAnnouncementsBatch(
   return request<AnnouncementImportBatchResult>("/announcements/import/batch", jsonInit("POST", payloads));
 }
 
-export async function fetchEvents(params: { windowHours?: number; categories?: AnnouncementCategory[] }): Promise<EventsResponse> {
+export async function fetchEvents(params: {
+  windowHours?: number;
+  start?: string;
+  end?: string;
+  categories?: AnnouncementCategory[];
+}): Promise<EventsResponse> {
   const q = new URLSearchParams();
   if (params.windowHours !== undefined) q.set("window_hours", String(params.windowHours));
+  if (params.start) q.set("start", params.start);
+  if (params.end) q.set("end", params.end);
   for (const c of params.categories ?? []) q.append("categories", c);
   return request<EventsResponse>(`/events?${q.toString()}`);
 }

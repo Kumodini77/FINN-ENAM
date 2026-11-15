@@ -28,7 +28,15 @@ def evaluate_market_alert(quote: PriceQuote, config: AlertsConfig, repo: AlertRe
             company_ticker=quote.ticker,
             trigger_type=AlertTriggerType.VOLUME_SPIKE,
             trade_date=quote.as_of_date,
-            payload={"volume_multiple": quote.volume_multiple, "reason": anomaly.reasons[0] if anomaly.reasons else None},
+            payload={
+                "volume_multiple": quote.volume_multiple,
+                "reason": anomaly.reasons[0] if anomaly.reasons else None,
+                "latest_volume": quote.latest_volume,
+                "avg_volume": quote.avg_volume,
+                "avg_volume_window_days": quote.avg_volume_window_days,
+                "configured_multiple": config.volume_spike_multiple,
+                "as_of_date": quote.as_of_date.isoformat() if quote.as_of_date else None,
+            },
             triggered_at=datetime.now(timezone.utc),
         )
         _, created = repo.add(alert)
@@ -41,7 +49,13 @@ def evaluate_market_alert(quote: PriceQuote, config: AlertsConfig, repo: AlertRe
             company_ticker=quote.ticker,
             trigger_type=AlertTriggerType.PRICE_MOVE,
             trade_date=quote.as_of_date,
-            payload={"daily_change_pct": quote.daily_change_pct},
+            payload={
+                "daily_change_pct": quote.daily_change_pct,
+                "previous_close": quote.previous_close,
+                "latest_close": quote.latest_close,
+                "configured_threshold_pct": config.price_move_pct,
+                "as_of_date": quote.as_of_date.isoformat() if quote.as_of_date else None,
+            },
             triggered_at=datetime.now(timezone.utc),
         )
         _, created = repo.add(alert)
@@ -65,7 +79,14 @@ def evaluate_announcement_alert(
         company_ticker=announcement.company_ticker,
         trigger_type=AlertTriggerType.MATERIAL_ANNOUNCEMENT,
         source_announcement_id=announcement.id,
-        payload={"title": announcement.title, "category": announcement.category.value, "priority": announcement.priority.value},
+        payload={
+            "title": announcement.title,
+            "category": announcement.category.value,
+            "priority": announcement.priority.value,
+            "why_it_matters": announcement.why_it_matters,
+            "original_source_url": announcement.original_source_url,
+            "filed_at": announcement.filed_at.isoformat(),
+        },
         triggered_at=datetime.now(timezone.utc),
     )
     record, created = repo.add(alert)

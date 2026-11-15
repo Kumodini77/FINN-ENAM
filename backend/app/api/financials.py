@@ -57,7 +57,7 @@ def results_comparison(ticker: str, basis: str | None = None) -> list[ResultsCom
     others — deterministic, per docs/requirements.md Module 5. An empty list means no
     financial_metrics have been imported for this ticker yet (not an error)."""
     repo = FinancialMetricRepository()
-    all_metrics = repo.list_for_ticker(ticker.upper(), basis=basis)
+    all_metrics = repo.list_for_ticker(ticker.strip().upper(), basis=basis)
 
     responses = []
     for metric in sorted(all_metrics, key=lambda m: m.period):
